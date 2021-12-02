@@ -1,4 +1,4 @@
-﻿namespace DependencyInjectionContainer.DependenciesConfiguration
+﻿namespace DependencyInjectionContainer.Configuration
 {
     public enum LifeTime
     {

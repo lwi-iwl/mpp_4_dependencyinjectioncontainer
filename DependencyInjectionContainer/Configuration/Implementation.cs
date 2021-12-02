@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace DependencyInjectionContainer.DependenciesConfiguration
+namespace DependencyInjectionContainer.Configuration
 {
     public class Implementation
     {

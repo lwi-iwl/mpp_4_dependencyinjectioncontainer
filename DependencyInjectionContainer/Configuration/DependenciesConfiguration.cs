@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace DependencyInjectionContainer.DependenciesConfiguration
+namespace DependencyInjectionContainer.Configuration
 {
     public class DependenciesConfiguration
     {
@@ -14,7 +14,7 @@ namespace DependencyInjectionContainer.DependenciesConfiguration
         }
 
         public void Register<TDependency, TImplementation>(LifeTime lifetime,
-            ServiceImplementation serviceImplementation = ServiceImplementation.None) where TDependency : class where TImplementation : TDependency
+            ServiceImplementation serviceImplementation = ServiceImplementation.None)
         {
             Register(typeof(TDependency), typeof(TImplementation), lifetime, serviceImplementation);
         }
@@ -22,7 +22,6 @@ namespace DependencyInjectionContainer.DependenciesConfiguration
         public void Register(Type dependencyType, Type implementationType, LifeTime lifetime,
             ServiceImplementation serviceImplementation = ServiceImplementation.None)
         {
-            List<Implementation> implementations;
             if (!Dependencies.ContainsKey(dependencyType))
             {
                 Dependencies.Add(dependencyType, new List<Implementation>());

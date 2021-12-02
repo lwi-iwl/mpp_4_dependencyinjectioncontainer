@@ -1,29 +1,50 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using DependencyInjectionContainer.Configuration;
 
 namespace DependencyInjectionContainer.DependencyProvider
 {
-    
-    public class Validator
+    public class DependencyProvider
     {
-        public DependenciesConfiguration DependenciesConfiguration { get; set; }
+        public DependenciesConfiguration DependenciesConfiguration { get; private set; }
+        public Validator Validator { get; private set; }
 
-
-        public bool Validate()
+        public DependencyProvider(DependenciesConfiguration dependencies)
         {
-            bool isValid = true;
-            foreach (Type dependency in DependenciesConfiguration.Dependencies.Keys.ToList())
+            Validator = new Validator();
+            Validator.DependenciesConfiguration = DependenciesConfiguration;
+            if (!Validator.Validate())
             {
-                isValid = isValid && IsValid(dependency);
+                throw new ArgumentException("Wrong configuration");
             }
-
-            return isValid;
+            DependenciesConfiguration = dependencies;
         }
 
-        public bool IsValid(Type dependency)
+        public TDependency Resolve<TDependency>(ServiceImplementation serviceImplementation = ServiceImplementation.Any)
+            where TDependency : class
+        {
+            return (TDependency)Resolve(typeof(TDependency), serviceImplementation);
+        }
+        
+        public object Resolve(Type dependencyType, ServiceImplementation serviceImplementation = ServiceImplementation.Any)
+        {
+            object result = null;
+
+            return result;
+        }
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        /*
+         *         public DependenciesConfiguration DependenciesConfiguration { get; set; }
+
+        public bool IsValid(Type dependency, ServiceImplementation serviceImplementation)
         {
             bool isValid = true;
             if (dependency.GetGenericArguments().ToList().Count == 0)
@@ -54,7 +75,7 @@ namespace DependencyInjectionContainer.DependencyProvider
                     if (index == -1)
                         isParametersValid = false;
                     else
-                        isParametersValid = IsValid(DependenciesConfiguration.Dependencies.Keys.ToList()[index]);
+                        isParametersValid = IsValid(DependenciesConfiguration.Dependencies.Keys.ToList()[index], ServiceImplementation.Any);
                 }
                 isValid = isValid || isParametersValid;
             }
@@ -90,7 +111,7 @@ namespace DependencyInjectionContainer.DependencyProvider
                 Type depend = DependenciesConfiguration.Dependencies.Keys.ToList().Find(x => x.FullName == dependencyName);
                 foreach (Implementation implementation in DependenciesConfiguration.Dependencies[depend])
                 {
-                    isValid = isValid && IsValid(dependency.GetGenericArguments().ToList()[0]);
+                    isValid = isValid && IsValid(dependency.GetGenericArguments().ToList()[0], ServiceImplementation.Any);
                 }
             }
             else
@@ -100,5 +121,6 @@ namespace DependencyInjectionContainer.DependencyProvider
 
             return isValid;
         }
+         */
     }
 }
