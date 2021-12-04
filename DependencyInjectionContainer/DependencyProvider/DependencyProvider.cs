@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using DependencyInjectionContainer.Configuration;
 
@@ -6,121 +8,160 @@ namespace DependencyInjectionContainer.DependencyProvider
 {
     public class DependencyProvider
     {
-        public DependenciesConfiguration DependenciesConfiguration { get; private set; }
-        public Validator Validator { get; private set; }
+        private DependenciesConfiguration _dependenciesConfiguration;
+        private Dictionary<Implementation, object> _singletones;
+        private Validator _validator;
 
         public DependencyProvider(DependenciesConfiguration dependencies)
         {
-            Validator = new Validator();
-            Validator.DependenciesConfiguration = DependenciesConfiguration;
-            if (!Validator.Validate())
+            _validator = new Validator();
+            _validator.DependenciesConfiguration = dependencies;
+            if (!_validator.Validate())
             {
                 throw new ArgumentException("Wrong configuration");
             }
-            DependenciesConfiguration = dependencies;
+            _dependenciesConfiguration = dependencies;
+            _singletones = new Dictionary<Implementation, object>();
         }
 
-        public TDependency Resolve<TDependency>(ServiceImplementation serviceImplementation = ServiceImplementation.Any)
+        public IEnumerable<TDependency> Resolve<TDependency>(ServiceImplementation serviceImplementation = ServiceImplementation.Any)
             where TDependency : class
         {
-            return (TDependency)Resolve(typeof(TDependency), serviceImplementation);
-        }
-        
-        public object Resolve(Type dependencyType, ServiceImplementation serviceImplementation = ServiceImplementation.Any)
-        {
-            object result = null;
-
+            object[] resultWithoutType = Resolve(typeof(TDependency), serviceImplementation);
+            TDependency[] result = new TDependency[resultWithoutType.Length];
+            for (int i = 0; i < resultWithoutType.Length; i++)
+            {
+                result[i] = (TDependency) resultWithoutType[0];
+            }
             return result;
         }
         
-        
-        
-        
-        
-        
-        
-        
-        
-        /*
-         *         public DependenciesConfiguration DependenciesConfiguration { get; set; }
-
-        public bool IsValid(Type dependency, ServiceImplementation serviceImplementation)
+        public object[] Resolve(Type dependencyType, ServiceImplementation serviceImplementation)
         {
-            bool isValid = true;
-            if (dependency.GetGenericArguments().ToList().Count == 0)
+            List<object> result = new List<object>();
+            List<object> tempResult = new List<object>();
+            if (dependencyType.GetGenericArguments().ToList().Count == 0)
             {
-                isValid = IsNonGenericValid(dependency);
+                tempResult = NonGenericResolve(dependencyType);
             }
             else
             {
-                isValid = IsGenericValid(dependency);
+                tempResult = GenericResolve(dependencyType);
             }
-
-            return isValid;
+            if (serviceImplementation == ServiceImplementation.Any)
+            {
+                result = tempResult;
+            }
+            else if (serviceImplementation == ServiceImplementation.First && tempResult.Count>0)
+            {
+                result.Add(tempResult[0]);
+            }
+            else if (serviceImplementation == ServiceImplementation.Second && tempResult.Count>1)
+            {
+                result.Add(tempResult[1]);
+            }
+            return result.ToArray();
         }
 
-        private bool IsConstructorValid(Implementation implementation)
+        public List<object> GenericResolve(Type dependencyType)
         {
-            Console.WriteLine(implementation.ImplementationType.FullName);
-            List<ConstructorInfo> constructors = implementation.ImplementationType.GetConstructors().ToList();
-            bool isValid = false;
-            foreach (ConstructorInfo constructor in constructors)
+            List<object> tempResult = new List<object>() ;
+            string dependencyName = dependencyType.FullName.Split('[')[0];
+            Type depend = _dependenciesConfiguration.Dependencies.Keys.ToList().Find(x => x.FullName.Split('[')[0] == dependencyName);
+            if (depend != null)
             {
-                List<ParameterInfo> parameters = constructor.GetParameters().ToList();
-                bool isParametersValid = true;
-                foreach (ParameterInfo parameter in parameters)
+                foreach (Implementation implementation in _dependenciesConfiguration.Dependencies[depend])
                 {
-                    int index = DependenciesConfiguration.Dependencies.Keys.ToList()
-                        .FindIndex(x => x.GetType() == parameter.GetType());
-                    if (index == -1)
-                        isParametersValid = false;
+                    Type implementationType;
+                    if (implementation.ImplementationType.GetGenericArguments()[0] !=
+                        dependencyType.GetGenericArguments()[0])
+                    {
+                        implementationType = implementation.ImplementationType.MakeGenericType(new Type[] { dependencyType.GetGenericArguments()[0] });
+                    }
                     else
-                        isParametersValid = IsValid(DependenciesConfiguration.Dependencies.Keys.ToList()[index], ServiceImplementation.Any);
+                    {
+                        implementationType = implementation.ImplementationType;
+                    }
+                    ConstructorInfo implementationConstructor =
+                        implementationType.GetConstructors().ToList().Find(x =>
+                            x.GetParameters().ToList().FindIndex(y =>
+                                y.ParameterType == implementationType.GetGenericArguments()[0]) != -1);
+                    List<ParameterInfo> parameters = implementationConstructor.GetParameters().ToList();
+                    List<object> newParameters = new List<object>();
+                    foreach (ParameterInfo parameter in parameters)
+                    {
+                        if (parameter.ParameterType == implementationType.GetGenericArguments()[0])
+                        {
+                            object[] newParameter = Resolve(dependencyType.GetGenericArguments()[0],
+                                ServiceImplementation.First);
+                            newParameters.Add(newParameter[0]);
+                        }
+                        else
+                        {
+                            object[] newParameter = Resolve(parameter.ParameterType, ServiceImplementation.First);
+                            newParameters.Add(newParameter[0]);
+                        }
+
+                    }
+
+                    //object newObject = Activator.CreateInstance(dependencyType, newParameters.ToArray());
+                    object newObject = implementationConstructor.Invoke(newParameters.ToArray());
+                    tempResult.Add(newObject);
                 }
-                isValid = isValid || isParametersValid;
             }
-            return isValid;
+            return tempResult;
         }
 
-        public bool IsNonGenericValid(Type dependency)
+        public List<object> NonGenericResolve(Type dependencyType)
         {
-            bool isValid = true;
-            if (DependenciesConfiguration.Dependencies.Keys.ToList().Exists(x => x.FullName == dependency.FullName))
-                foreach (Implementation implementation in DependenciesConfiguration.Dependencies[dependency])
-                {
-                    isValid = isValid && implementation.ImplementationType.IsAssignableFrom(dependency) ||
-                              implementation
-                                  .ImplementationType.GetInterfaces()
-                                  .Any(x => x.ToString() == dependency.ToString());
-                    isValid = isValid && IsConstructorValid(implementation);
-                }
-            else
+            List<object> tempResult = new List<object>();
+            if (_dependenciesConfiguration.Dependencies.Keys.ToList().Exists(x => x == dependencyType))
             {
-                isValid = false;
-            }
+                foreach (Implementation implementation in _dependenciesConfiguration.Dependencies[dependencyType])
+                {
+                    List<ConstructorInfo> implementationConstructors =
+                        implementation.ImplementationType.GetConstructors().ToList();
+                    List<ConstructorInfo> availableСonstructors = new List<ConstructorInfo>();
+                    foreach (ConstructorInfo implementationConstructor in implementationConstructors)
+                    {
+                        bool isAvailable = true;
+                        foreach (ParameterInfo parameter in implementationConstructor.GetParameters())
+                        {
+                            isAvailable = isAvailable && _dependenciesConfiguration.Dependencies.Keys.ToList()
+                                .Contains(parameter.ParameterType);
+                        }
 
-            return isValid;
+                        if (isAvailable)
+                            availableСonstructors.Add(implementationConstructor);
+                    }
+                    if (availableСonstructors.Count > 0)
+                    {
+                        List<ParameterInfo> parameters = availableСonstructors[0].GetParameters().ToList();
+                        List<object> newParameters = new List<object>();
+                        foreach (ParameterInfo parameter in parameters)
+                        {
+                            if (_dependenciesConfiguration.Dependencies.Keys.ToList()
+                                .Exists(x => x == parameter.ParameterType))
+                            {
+                                object[] newParameter = Resolve(parameter.ParameterType, ServiceImplementation.First);
+                                newParameters.Add(newParameter[0]);
+                            }
+                        }
+                        object newObject = availableСonstructors[0].Invoke(newParameters.ToArray());
+                        tempResult.Add(newObject);
+                    }
+                    else
+                        tempResult.Add(null);
+                }
+            }
+            return tempResult;
         }
 
-        public bool IsGenericValid(Type dependency)
+        public object Singletone()
         {
-            bool isValid = true;
-            string dependencyName = dependency.FullName.Split('[')[0];
-            if (DependenciesConfiguration.Dependencies.Keys.ToList().Exists(x => x.FullName == dependencyName))
-            {
-                Type depend = DependenciesConfiguration.Dependencies.Keys.ToList().Find(x => x.FullName == dependencyName);
-                foreach (Implementation implementation in DependenciesConfiguration.Dependencies[depend])
-                {
-                    isValid = isValid && IsValid(dependency.GetGenericArguments().ToList()[0], ServiceImplementation.Any);
-                }
-            }
-            else
-            {
-                isValid = false;
-            }
-
-            return isValid;
+            object result = null;
+            return result;
         }
-         */
+        
     }
 }

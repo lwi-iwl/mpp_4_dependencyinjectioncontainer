@@ -40,7 +40,6 @@ namespace DependencyInjectionContainer.DependencyProvider
 
         private bool IsConstructorValid(Implementation implementation)
         {
-            Console.WriteLine(implementation.ImplementationType.FullName);
             List<ConstructorInfo> constructors = implementation.ImplementationType.GetConstructors().ToList();
             bool isValid = false;
             foreach (ConstructorInfo constructor in constructors)
@@ -49,12 +48,15 @@ namespace DependencyInjectionContainer.DependencyProvider
                 bool isParametersValid = true;
                 foreach (ParameterInfo parameter in parameters)
                 {
-                    int index = DependenciesConfiguration.Dependencies.Keys.ToList()
-                        .FindIndex(x => x.GetType() == parameter.GetType());
-                    if (index == -1)
-                        isParametersValid = false;
-                    else
-                        isParametersValid = IsValid(DependenciesConfiguration.Dependencies.Keys.ToList()[index]);
+                    if (!parameter.ParameterType.IsGenericParameter)
+                    {
+                        int index = DependenciesConfiguration.Dependencies.Keys.ToList()
+                            .FindIndex(x => x == parameter.ParameterType);
+                        if (index == -1)
+                            isParametersValid = false;
+                        else
+                            isParametersValid = IsValid(DependenciesConfiguration.Dependencies.Keys.ToList()[index]);
+                    }
                 }
                 isValid = isValid || isParametersValid;
             }
@@ -85,12 +87,19 @@ namespace DependencyInjectionContainer.DependencyProvider
         {
             bool isValid = true;
             string dependencyName = dependency.FullName.Split('[')[0];
-            if (DependenciesConfiguration.Dependencies.Keys.ToList().Exists(x => x.FullName == dependencyName))
+            if (DependenciesConfiguration.Dependencies.Keys.ToList().Exists(x => x.FullName.Split('[')[0] == dependencyName))
             {
                 Type depend = DependenciesConfiguration.Dependencies.Keys.ToList().Find(x => x.FullName == dependencyName);
-                foreach (Implementation implementation in DependenciesConfiguration.Dependencies[depend])
-                {
-                    isValid = isValid && IsValid(dependency.GetGenericArguments().ToList()[0]);
+                if (depend != null)
+                {           
+                    foreach (Implementation implementation in DependenciesConfiguration.Dependencies[depend])
+                    {
+                        isValid = isValid && implementation.ImplementationType.IsAssignableFrom(dependency) ||
+                                  implementation
+                                      .ImplementationType.GetInterfaces()
+                                      .Any(x => x.ToString().Split('[')[0] == dependency.ToString().Split('[')[0]);
+                        isValid = isValid && IsConstructorValid(implementation);
+                    }
                 }
             }
             else

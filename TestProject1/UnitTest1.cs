@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using DependencyInjectionContainer.Configuration;
 using DependencyInjectionContainer.DependencyProvider;
 using NUnit.Framework;
@@ -6,8 +8,11 @@ namespace TestProject1
 {
     public class Tests
     {
-        public Validator Validator { get; private set; }
-        interface IService {}
+        private Validator _validator;
+
+        private DependencyProvider _dependencyProvider;
+
+            interface IService {}
         class ServiceImpl : IService
         {
             public ServiceImpl(IRepository repository) 
@@ -18,7 +23,7 @@ namespace TestProject1
         interface IRepository{}
         class RepositoryImpl : IRepository
         {
-            public RepositoryImpl(){}
+            
         }
         
         interface IServiceEnum<TMySqlRepository> where TMySqlRepository : IRepository
@@ -35,42 +40,42 @@ namespace TestProject1
         {
             public MySqlRepositoryImpl(){}
         }
-    
+
         [SetUp]
         public void Setup()
         {
-            Validator = new Validator();
+            _validator = new Validator();
         }
 
         [Test]
         public void Valid()
         {
             DependenciesConfiguration dependencies = new DependenciesConfiguration();
-            Validator.DependenciesConfiguration = dependencies;
+            _validator.DependenciesConfiguration = dependencies;
             dependencies.Register<IRepository, RepositoryImpl>(LifeTime.Singleton);
             dependencies.Register<IService, ServiceImpl>(LifeTime.Singleton);
-            Assert.AreEqual(false, Validator.Validate());
+            Assert.AreEqual(true, _validator.Validate());
         }
         
         [Test]
         public void NotValid()
         {
             DependenciesConfiguration dependencies = new DependenciesConfiguration();
-            Validator.DependenciesConfiguration = dependencies;
+            _validator.DependenciesConfiguration = dependencies;
             //dependency.Register<IRepository, RepositoryImpl>(LifeTime.Singleton);
             dependencies.Register<IService, ServiceImpl>(LifeTime.Singleton);
-            Assert.AreEqual(false, Validator.Validate());
+            Assert.AreEqual(false, _validator.Validate());
         }
         
         [Test]
         public void ValidGeneric()
         {
             DependenciesConfiguration dependencies = new DependenciesConfiguration();
-            Validator.DependenciesConfiguration = dependencies;
             dependencies.Register(typeof(IServiceEnum<>), typeof(ServiceEnumImpl<>), LifeTime.Singleton);
             dependencies.Register<IRepository, MySqlRepositoryImpl>(LifeTime.Singleton);
+            _validator.DependenciesConfiguration = dependencies;
             //dependencies.Register<IService<IRepository>, ServiceImpl<IRepository>>(LifeTime.Singleton);
-            Assert.AreEqual(false, Validator.Validate());
+            Assert.AreEqual(true, _validator.Validate());
         }
 
 
@@ -79,9 +84,47 @@ namespace TestProject1
         public void AsSelfValid()
         {
             DependenciesConfiguration dependencies = new DependenciesConfiguration();
-            Validator.DependenciesConfiguration = dependencies;
+            _validator.DependenciesConfiguration = dependencies;
             dependencies.Register<RepositoryImpl, RepositoryImpl>(LifeTime.Singleton);
-            Assert.AreEqual(true, Validator.Validate());
+            Assert.AreEqual(true, _validator.Validate());
+        }
+        
+        [Test]
+        public void Resolve()
+        {
+            DependenciesConfiguration dependencies = new DependenciesConfiguration();
+            _validator.DependenciesConfiguration = dependencies;
+            dependencies.Register<IRepository, RepositoryImpl>(LifeTime.Singleton);
+            dependencies.Register<IService, ServiceImpl>(LifeTime.Singleton);
+            _dependencyProvider = new DependencyProvider(dependencies);
+            IEnumerator<IService> newEnumerator = _dependencyProvider.Resolve<IService>().GetEnumerator();
+            newEnumerator.MoveNext();
+            Console.WriteLine(newEnumerator.Current);
+        }
+        
+        [Test]
+        public void ResolveGeneric()
+        {
+            DependenciesConfiguration dependencies = new DependenciesConfiguration();
+            dependencies.Register<IServiceEnum<IRepository>, ServiceEnumImpl<IRepository>>(LifeTime.Singleton);
+            //dependencies.Register(typeof(IServiceEnum<>), typeof(ServiceEnumImpl<>), LifeTime.Singleton);
+            dependencies.Register<IRepository, MySqlRepositoryImpl>(LifeTime.Singleton);
+            
+            _dependencyProvider = new DependencyProvider(dependencies);
+            _dependencyProvider.Resolve<IServiceEnum<IRepository>>();
+        }
+        
+        
+        [Test]
+        public void ResolveOpenGeneric()
+        {
+            DependenciesConfiguration dependencies = new DependenciesConfiguration();
+            //dependencies.Register<IServiceEnum<IRepository>, ServiceEnumImpl<IRepository>>(LifeTime.Singleton);
+            dependencies.Register(typeof(IServiceEnum<>), typeof(ServiceEnumImpl<>), LifeTime.Singleton);
+            dependencies.Register<IRepository, MySqlRepositoryImpl>(LifeTime.Singleton);
+            
+            _dependencyProvider = new DependencyProvider(dependencies);
+            _dependencyProvider.Resolve<IServiceEnum<IRepository>>();
         }
 
     }

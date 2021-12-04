@@ -14,13 +14,13 @@ namespace DependencyInjectionContainer.Configuration
         }
 
         public void Register<TDependency, TImplementation>(LifeTime lifetime,
-            ServiceImplementation serviceImplementation = ServiceImplementation.None)
+            ServiceImplementation serviceImplementation = ServiceImplementation.Any)
         {
             Register(typeof(TDependency), typeof(TImplementation), lifetime, serviceImplementation);
         }
 
         public void Register(Type dependencyType, Type implementationType, LifeTime lifetime,
-            ServiceImplementation serviceImplementation = ServiceImplementation.None)
+            ServiceImplementation serviceImplementation = ServiceImplementation.Any)
         {
             if (!Dependencies.ContainsKey(dependencyType))
             {
