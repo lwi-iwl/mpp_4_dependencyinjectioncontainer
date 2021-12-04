@@ -26,12 +26,17 @@ namespace TestProject1
             
         }
         
+        class AnotherRepositoryImpl : IRepository
+        {
+            
+        }
+        
         interface IServiceEnum<TMySqlRepository> where TMySqlRepository : IRepository
         {
         }
         class ServiceEnumImpl<TRepository> : IServiceEnum<TRepository> where TRepository : IRepository
         {
-            public ServiceEnumImpl(TRepository repository)
+            public ServiceEnumImpl(TRepository repository, IService service)
             {
             }
         }
@@ -72,6 +77,7 @@ namespace TestProject1
         {
             DependenciesConfiguration dependencies = new DependenciesConfiguration();
             dependencies.Register(typeof(IServiceEnum<>), typeof(ServiceEnumImpl<>), LifeTime.Singleton);
+            dependencies.Register<IService, ServiceImpl>(LifeTime.Singleton);
             dependencies.Register<IRepository, MySqlRepositoryImpl>(LifeTime.Singleton);
             _validator.DependenciesConfiguration = dependencies;
             //dependencies.Register<IService<IRepository>, ServiceImpl<IRepository>>(LifeTime.Singleton);
@@ -88,9 +94,22 @@ namespace TestProject1
             dependencies.Register<RepositoryImpl, RepositoryImpl>(LifeTime.Singleton);
             Assert.AreEqual(true, _validator.Validate());
         }
-        
+
+
         [Test]
         public void Resolve()
+        {
+            DependenciesConfiguration dependencies = new DependenciesConfiguration();
+            _validator.DependenciesConfiguration = dependencies;
+            dependencies.Register<IRepository, RepositoryImpl>(LifeTime.Singleton);
+            _dependencyProvider = new DependencyProvider(dependencies);
+            IEnumerator<IRepository> newEnumerator = _dependencyProvider.Resolve<IRepository>().GetEnumerator();
+            newEnumerator.MoveNext();
+            Console.WriteLine(newEnumerator.Current);
+        }
+
+        [Test]
+        public void ResolveNested()
         {
             DependenciesConfiguration dependencies = new DependenciesConfiguration();
             _validator.DependenciesConfiguration = dependencies;
@@ -103,13 +122,28 @@ namespace TestProject1
         }
         
         [Test]
+        public void ResolveSurface()
+        {
+            DependenciesConfiguration dependencies = new DependenciesConfiguration();
+            _validator.DependenciesConfiguration = dependencies;
+            dependencies.Register<IRepository, RepositoryImpl>(LifeTime.Singleton);
+            dependencies.Register<IRepository, AnotherRepositoryImpl>(LifeTime.Singleton);
+            _dependencyProvider = new DependencyProvider(dependencies);
+            IEnumerator<IRepository> newEnumerator = _dependencyProvider.Resolve<IRepository>().GetEnumerator();
+            newEnumerator.MoveNext();
+            Console.WriteLine(newEnumerator.Current);
+            newEnumerator.MoveNext();
+            Console.WriteLine(newEnumerator.Current);
+        }
+        
+        [Test]
         public void ResolveGeneric()
         {
             DependenciesConfiguration dependencies = new DependenciesConfiguration();
             dependencies.Register<IServiceEnum<IRepository>, ServiceEnumImpl<IRepository>>(LifeTime.Singleton);
             //dependencies.Register(typeof(IServiceEnum<>), typeof(ServiceEnumImpl<>), LifeTime.Singleton);
             dependencies.Register<IRepository, MySqlRepositoryImpl>(LifeTime.Singleton);
-            
+            dependencies.Register<IService, ServiceImpl>(LifeTime.Singleton);
             _dependencyProvider = new DependencyProvider(dependencies);
             _dependencyProvider.Resolve<IServiceEnum<IRepository>>();
         }
@@ -122,9 +156,39 @@ namespace TestProject1
             //dependencies.Register<IServiceEnum<IRepository>, ServiceEnumImpl<IRepository>>(LifeTime.Singleton);
             dependencies.Register(typeof(IServiceEnum<>), typeof(ServiceEnumImpl<>), LifeTime.Singleton);
             dependencies.Register<IRepository, MySqlRepositoryImpl>(LifeTime.Singleton);
-            
+            dependencies.Register<IService, ServiceImpl>(LifeTime.Singleton);
             _dependencyProvider = new DependencyProvider(dependencies);
-            _dependencyProvider.Resolve<IServiceEnum<IRepository>>();
+            IEnumerator<IServiceEnum<IRepository>> newEnumerator = _dependencyProvider.Resolve<IServiceEnum<IRepository>>().GetEnumerator();
+            newEnumerator.MoveNext();
+            Console.WriteLine(newEnumerator.Current);
+        }
+
+        [Test]
+        public void ResolveSingleton()
+        {
+            DependenciesConfiguration dependencies = new DependenciesConfiguration();
+            _validator.DependenciesConfiguration = dependencies;
+            dependencies.Register<IRepository, RepositoryImpl>(LifeTime.Singleton);
+            _dependencyProvider = new DependencyProvider(dependencies);
+            IEnumerator<IRepository> newEnumerator = _dependencyProvider.Resolve<IRepository>().GetEnumerator();
+            newEnumerator.MoveNext();
+            IEnumerator<IRepository> newEnumerator2 = _dependencyProvider.Resolve<IRepository>().GetEnumerator();
+            newEnumerator2.MoveNext();
+            Assert.AreEqual(newEnumerator.Current, newEnumerator2.Current);
+        }
+
+        [Test]
+        public void ResolveInstancePerDependency()
+        {
+            DependenciesConfiguration dependencies = new DependenciesConfiguration();
+            _validator.DependenciesConfiguration = dependencies;
+            dependencies.Register<IRepository, RepositoryImpl>(LifeTime.InstancePerDependency);
+            _dependencyProvider = new DependencyProvider(dependencies);
+            IEnumerator<IRepository> newEnumerator = _dependencyProvider.Resolve<IRepository>().GetEnumerator();
+            newEnumerator.MoveNext();
+            IEnumerator<IRepository> newEnumerator2 = _dependencyProvider.Resolve<IRepository>().GetEnumerator();
+            newEnumerator2.MoveNext();
+            Assert.AreNotEqual(newEnumerator.Current, newEnumerator2.Current);
         }
 
     }

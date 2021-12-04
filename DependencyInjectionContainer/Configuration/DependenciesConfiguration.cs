@@ -16,11 +16,10 @@ namespace DependencyInjectionContainer.Configuration
         public void Register<TDependency, TImplementation>(LifeTime lifetime,
             ServiceImplementation serviceImplementation = ServiceImplementation.Any)
         {
-            Register(typeof(TDependency), typeof(TImplementation), lifetime, serviceImplementation);
+            Register(typeof(TDependency), typeof(TImplementation), lifetime);
         }
 
-        public void Register(Type dependencyType, Type implementationType, LifeTime lifetime,
-            ServiceImplementation serviceImplementation = ServiceImplementation.Any)
+        public void Register(Type dependencyType, Type implementationType, LifeTime lifetime)
         {
             if (!Dependencies.ContainsKey(dependencyType))
             {
@@ -32,7 +31,7 @@ namespace DependencyInjectionContainer.Configuration
             {
                 Dependencies[dependencyType].RemoveAt(index);
             }
-            Dependencies[dependencyType].Add(new Implementation(implementationType, lifetime, serviceImplementation));
+            Dependencies[dependencyType].Add(new Implementation(implementationType, lifetime));
 
         }
     }

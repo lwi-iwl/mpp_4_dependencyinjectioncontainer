@@ -31,7 +31,7 @@ namespace DependencyInjectionContainer.DependencyProvider
             TDependency[] result = new TDependency[resultWithoutType.Length];
             for (int i = 0; i < resultWithoutType.Length; i++)
             {
-                result[i] = (TDependency) resultWithoutType[0];
+                result[i] = (TDependency) resultWithoutType[i];
             }
             return result;
         }
@@ -72,41 +72,28 @@ namespace DependencyInjectionContainer.DependencyProvider
             {
                 foreach (Implementation implementation in _dependenciesConfiguration.Dependencies[depend])
                 {
-                    Type implementationType;
-                    if (implementation.ImplementationType.GetGenericArguments()[0] !=
-                        dependencyType.GetGenericArguments()[0])
+                    if (implementation.LifeTime == LifeTime.Singleton)
                     {
-                        implementationType = implementation.ImplementationType.MakeGenericType(new Type[] { dependencyType.GetGenericArguments()[0] });
-                    }
-                    else
-                    {
-                        implementationType = implementation.ImplementationType;
-                    }
-                    ConstructorInfo implementationConstructor =
-                        implementationType.GetConstructors().ToList().Find(x =>
-                            x.GetParameters().ToList().FindIndex(y =>
-                                y.ParameterType == implementationType.GetGenericArguments()[0]) != -1);
-                    List<ParameterInfo> parameters = implementationConstructor.GetParameters().ToList();
-                    List<object> newParameters = new List<object>();
-                    foreach (ParameterInfo parameter in parameters)
-                    {
-                        if (parameter.ParameterType == implementationType.GetGenericArguments()[0])
+                        if (_singletones.ContainsKey(implementation))
                         {
-                            object[] newParameter = Resolve(dependencyType.GetGenericArguments()[0],
-                                ServiceImplementation.First);
-                            newParameters.Add(newParameter[0]);
+                            tempResult.Add(_singletones[implementation]);
                         }
                         else
                         {
-                            object[] newParameter = Resolve(parameter.ParameterType, ServiceImplementation.First);
-                            newParameters.Add(newParameter[0]);
+                            object newObject = GenerateGeneric(implementation, dependencyType);
+                            if (newObject != null)
+                            {
+                                _singletones.Add(implementation, newObject);
+                                tempResult.Add(_singletones[implementation]);
+                            }
                         }
-
                     }
-
-                    //object newObject = Activator.CreateInstance(dependencyType, newParameters.ToArray());
-                    object newObject = implementationConstructor.Invoke(newParameters.ToArray());
-                    tempResult.Add(newObject);
+                    else
+                    {
+                        object newObject = GenerateGeneric(implementation, dependencyType);
+                        if (newObject != null)
+                            tempResult.Add(newObject);
+                    }
                 }
             }
             return tempResult;
@@ -119,49 +106,126 @@ namespace DependencyInjectionContainer.DependencyProvider
             {
                 foreach (Implementation implementation in _dependenciesConfiguration.Dependencies[dependencyType])
                 {
-                    List<ConstructorInfo> implementationConstructors =
-                        implementation.ImplementationType.GetConstructors().ToList();
-                    List<ConstructorInfo> availableСonstructors = new List<ConstructorInfo>();
-                    foreach (ConstructorInfo implementationConstructor in implementationConstructors)
+                    if (implementation.LifeTime == LifeTime.Singleton)
                     {
-                        bool isAvailable = true;
-                        foreach (ParameterInfo parameter in implementationConstructor.GetParameters())
+                        if (_singletones.ContainsKey(implementation))
                         {
-                            isAvailable = isAvailable && _dependenciesConfiguration.Dependencies.Keys.ToList()
-                                .Contains(parameter.ParameterType);
+                            tempResult.Add(_singletones[implementation]);
                         }
-
-                        if (isAvailable)
-                            availableСonstructors.Add(implementationConstructor);
-                    }
-                    if (availableСonstructors.Count > 0)
-                    {
-                        List<ParameterInfo> parameters = availableСonstructors[0].GetParameters().ToList();
-                        List<object> newParameters = new List<object>();
-                        foreach (ParameterInfo parameter in parameters)
+                        else
                         {
-                            if (_dependenciesConfiguration.Dependencies.Keys.ToList()
-                                .Exists(x => x == parameter.ParameterType))
+                            object newObject = GenerateNonGeneric(implementation);
+                            if (newObject != null)
                             {
-                                object[] newParameter = Resolve(parameter.ParameterType, ServiceImplementation.First);
-                                newParameters.Add(newParameter[0]);
+                                _singletones.Add(implementation, newObject);
+                                tempResult.Add(_singletones[implementation]);
                             }
                         }
-                        object newObject = availableСonstructors[0].Invoke(newParameters.ToArray());
-                        tempResult.Add(newObject);
                     }
                     else
-                        tempResult.Add(null);
+                    {
+                        object newObject = GenerateNonGeneric(implementation);
+                        if (newObject != null)
+                            tempResult.Add(newObject);
+                    }
                 }
             }
             return tempResult;
         }
 
-        public object Singletone()
+        private object GenerateGeneric(Implementation implementation, Type dependencyType)
         {
-            object result = null;
-            return result;
+            Type implementationType;
+            if (implementation.ImplementationType.GetGenericArguments()[0] !=
+                dependencyType.GetGenericArguments()[0])
+            {
+                implementationType = implementation.ImplementationType.MakeGenericType(new Type[] { dependencyType.GetGenericArguments()[0] });
+            }
+            else
+            {
+                implementationType = implementation.ImplementationType;
+            }
+            ConstructorInfo implementationConstructor =
+                implementationType.GetConstructors().ToList().Find(x =>
+                    x.GetParameters().ToList().FindIndex(y =>
+                        y.ParameterType == implementationType.GetGenericArguments()[0]) != -1);
+            if (implementationConstructor == null)
+            {
+                List<ConstructorInfo> implementationConstructors =
+                    implementationType.GetConstructors().ToList();
+                List<ConstructorInfo> availableСonstructors = new List<ConstructorInfo>();
+                foreach (ConstructorInfo constructor in implementationConstructors)
+                {
+                    bool isAvailable = true;
+                    foreach (ParameterInfo parameter in constructor.GetParameters())
+                    {
+                        isAvailable = isAvailable && _dependenciesConfiguration.Dependencies.Keys.ToList()
+                            .Contains(parameter.ParameterType);
+                    }
+
+                    if (isAvailable)
+                        availableСonstructors.Add(constructor);
+                }
+
+                if (availableСonstructors.Count > 0)
+                {
+                    implementationConstructor = availableСonstructors[0];
+                }
+            }
+
+            List<ParameterInfo> parameters = implementationConstructor.GetParameters().ToList();
+            List<object> newParameters = new List<object>();
+            foreach (ParameterInfo parameter in parameters)
+            {
+                object[] newParameter = Resolve(parameter.ParameterType, ServiceImplementation.First);
+                if (newParameter.Length == 0)
+                    return null;
+                newParameters.Add(newParameter[0]);
+            }
+
+            //object newObject = Activator.CreateInstance(dependencyType, newParameters.ToArray());
+            object newObject = implementationConstructor.Invoke(newParameters.ToArray());
+            return newObject;
         }
         
+        private object GenerateNonGeneric(Implementation implementation)
+        {
+            List<ConstructorInfo> implementationConstructors =
+                implementation.ImplementationType.GetConstructors().ToList();
+            List<ConstructorInfo> availableСonstructors = new List<ConstructorInfo>();
+            foreach (ConstructorInfo implementationConstructor in implementationConstructors)
+            {
+                bool isAvailable = true;
+                foreach (ParameterInfo parameter in implementationConstructor.GetParameters())
+                {
+                    isAvailable = isAvailable && _dependenciesConfiguration.Dependencies.Keys.ToList()
+                        .Contains(parameter.ParameterType);
+                }
+
+                if (isAvailable)
+                    availableСonstructors.Add(implementationConstructor);
+            }
+            if (availableСonstructors.Count > 0)
+            {
+                List<ParameterInfo> parameters = availableСonstructors[0].GetParameters().ToList();
+                List<object> newParameters = new List<object>();
+                foreach (ParameterInfo parameter in parameters)
+                {
+                    if (_dependenciesConfiguration.Dependencies.Keys.ToList()
+                        .Exists(x => x == parameter.ParameterType))
+                    {
+                        object[] newParameter = Resolve(parameter.ParameterType, ServiceImplementation.First);
+                        if (newParameter.Length == 0)
+                            return null;
+                        newParameters.Add(newParameter[0]);
+                    }
+                }
+                object newObject = availableСonstructors[0].Invoke(newParameters.ToArray());
+                return newObject;
+            }
+
+            return null;
+        }
+
     }
 }
