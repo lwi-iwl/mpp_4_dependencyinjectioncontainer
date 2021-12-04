@@ -10,7 +10,12 @@ namespace DependencyInjectionContainer.DependencyProvider
     public class Validator
     {
         public DependenciesConfiguration DependenciesConfiguration { get; set; }
+        private List<Type> _cycleList;
 
+        public Validator()
+        {
+            _cycleList = new List<Type>();
+        }
 
         public bool Validate()
         {
@@ -55,7 +60,13 @@ namespace DependencyInjectionContainer.DependencyProvider
                         if (index == -1)
                             isParametersValid = false;
                         else
+                        {
+                            if (_cycleList.Contains(DependenciesConfiguration.Dependencies.Keys.ToList()[index]))
+                               return false;
+                            _cycleList.Add(DependenciesConfiguration.Dependencies.Keys.ToList()[index]);
                             isParametersValid = IsValid(DependenciesConfiguration.Dependencies.Keys.ToList()[index]);
+                            _cycleList.Clear();
+                        }
                     }
                 }
                 isValid = isValid || isParametersValid;

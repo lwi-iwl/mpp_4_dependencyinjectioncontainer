@@ -13,8 +13,7 @@ namespace DependencyInjectionContainer.Configuration
             Dependencies = new Dictionary<Type, List<Implementation>>();
         }
 
-        public void Register<TDependency, TImplementation>(LifeTime lifetime,
-            ServiceImplementation serviceImplementation = ServiceImplementation.Any)
+        public void Register<TDependency, TImplementation>(LifeTime lifetime)
         {
             Register(typeof(TDependency), typeof(TImplementation), lifetime);
         }

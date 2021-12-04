@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using DependencyInjectionContainer.Configuration;
 using DependencyInjectionContainer.DependencyProvider;
 using NUnit.Framework;
@@ -12,10 +13,24 @@ namespace TestProject1
 
         private DependencyProvider _dependencyProvider;
 
-            interface IService {}
+        interface IService
+        {
+            IRepository Repository { get; set; }
+        }
         class ServiceImpl : IService
         {
-            public ServiceImpl(IRepository repository) 
+            public IRepository Repository { get; set; }
+
+            public ServiceImpl(IRepository repository)
+            {
+                Repository = repository;
+            }
+        }
+        
+        class ServiceImpl2 : IService
+        {
+            public IRepository Repository { get; set; }
+            public ServiceImpl2(IService service)
             {
                 
             }
@@ -39,6 +54,10 @@ namespace TestProject1
             public ServiceEnumImpl(TRepository repository, IService service)
             {
             }
+        }
+        
+        class ServiceEnumImpl2<TRepository> : IServiceEnum<TRepository> where TRepository : IRepository
+        {
         }
         
         class MySqlRepositoryImpl : IRepository
@@ -95,6 +114,17 @@ namespace TestProject1
             Assert.AreEqual(true, _validator.Validate());
         }
 
+        [Test]
+
+        public void ThrowWithNotValid()
+        {
+            DependenciesConfiguration dependencies = new DependenciesConfiguration();
+            _validator.DependenciesConfiguration = dependencies;
+            //dependency.Register<IRepository, RepositoryImpl>(LifeTime.Singleton);
+            dependencies.Register<IService, ServiceImpl>(LifeTime.Singleton);
+            var ex = Assert.Throws<ArgumentException>(() => _dependencyProvider = new DependencyProvider(dependencies));
+            Assert.AreEqual("Wrong configuration", ex.Message);
+        }
 
         [Test]
         public void Resolve()
@@ -105,9 +135,21 @@ namespace TestProject1
             _dependencyProvider = new DependencyProvider(dependencies);
             IEnumerator<IRepository> newEnumerator = _dependencyProvider.Resolve<IRepository>().GetEnumerator();
             newEnumerator.MoveNext();
-            Console.WriteLine(newEnumerator.Current);
+            Assert.AreEqual(newEnumerator.Current.GetType(), typeof(RepositoryImpl));
         }
 
+        
+        [Test]
+        public void ValidateWithCycle()
+        {
+            DependenciesConfiguration dependencies = new DependenciesConfiguration();
+            _validator.DependenciesConfiguration = dependencies;
+            dependencies.Register<IService, ServiceImpl2>(LifeTime.Singleton);
+            var ex = Assert.Throws<ArgumentException>(() => _dependencyProvider = new DependencyProvider(dependencies));
+            Assert.AreEqual("Wrong configuration", ex.Message);
+        }
+        
+        
         [Test]
         public void ResolveNested()
         {
@@ -118,7 +160,8 @@ namespace TestProject1
             _dependencyProvider = new DependencyProvider(dependencies);
             IEnumerator<IService> newEnumerator = _dependencyProvider.Resolve<IService>().GetEnumerator();
             newEnumerator.MoveNext();
-            Console.WriteLine(newEnumerator.Current);
+            Assert.AreEqual(newEnumerator.Current.GetType(), typeof(ServiceImpl));
+            Assert.AreEqual(newEnumerator.Current.Repository.GetType(), typeof(RepositoryImpl));
         }
         
         [Test]
@@ -131,9 +174,9 @@ namespace TestProject1
             _dependencyProvider = new DependencyProvider(dependencies);
             IEnumerator<IRepository> newEnumerator = _dependencyProvider.Resolve<IRepository>().GetEnumerator();
             newEnumerator.MoveNext();
-            Console.WriteLine(newEnumerator.Current);
+            Assert.AreEqual(newEnumerator.Current.GetType(), typeof(RepositoryImpl));
             newEnumerator.MoveNext();
-            Console.WriteLine(newEnumerator.Current);
+            Assert.AreEqual(newEnumerator.Current.GetType(), typeof(AnotherRepositoryImpl));
         }
         
         [Test]
@@ -146,6 +189,9 @@ namespace TestProject1
             dependencies.Register<IService, ServiceImpl>(LifeTime.Singleton);
             _dependencyProvider = new DependencyProvider(dependencies);
             _dependencyProvider.Resolve<IServiceEnum<IRepository>>();
+            IEnumerator<IServiceEnum<IRepository>> newEnumerator = _dependencyProvider.Resolve<IServiceEnum<IRepository>>().GetEnumerator();
+            newEnumerator.MoveNext();
+            Assert.AreEqual(newEnumerator.Current.GetType(), typeof(ServiceEnumImpl<IRepository>));
         }
         
         
@@ -160,7 +206,19 @@ namespace TestProject1
             _dependencyProvider = new DependencyProvider(dependencies);
             IEnumerator<IServiceEnum<IRepository>> newEnumerator = _dependencyProvider.Resolve<IServiceEnum<IRepository>>().GetEnumerator();
             newEnumerator.MoveNext();
-            Console.WriteLine(newEnumerator.Current);
+            Assert.AreEqual(newEnumerator.Current.GetType(), typeof(ServiceEnumImpl<IRepository>));
+        }
+        
+        [Test]
+        public void ResolveOpenGenericWithoutConstructor()
+        {
+            DependenciesConfiguration dependencies = new DependenciesConfiguration();
+            //dependencies.Register<IServiceEnum<IRepository>, ServiceEnumImpl<IRepository>>(LifeTime.Singleton);
+            dependencies.Register(typeof(IServiceEnum<>), typeof(ServiceEnumImpl2<>), LifeTime.Singleton);
+            _dependencyProvider = new DependencyProvider(dependencies);
+            IEnumerator<IServiceEnum<IRepository>> newEnumerator = _dependencyProvider.Resolve<IServiceEnum<IRepository>>().GetEnumerator();
+            newEnumerator.MoveNext();
+            Assert.AreEqual(newEnumerator.Current.GetType(), typeof(ServiceEnumImpl2<IRepository>));
         }
 
         [Test]
@@ -190,6 +248,56 @@ namespace TestProject1
             newEnumerator2.MoveNext();
             Assert.AreNotEqual(newEnumerator.Current, newEnumerator2.Current);
         }
+        
+        [Test]
+        public void ResolveFirstImplementation()
+        {
+            DependenciesConfiguration dependencies = new DependenciesConfiguration();
+            _validator.DependenciesConfiguration = dependencies;
+            dependencies.Register<IRepository, RepositoryImpl>(LifeTime.Singleton);
+            dependencies.Register<IRepository, AnotherRepositoryImpl>(LifeTime.Singleton);
+            _dependencyProvider = new DependencyProvider(dependencies);
+            IEnumerator<IRepository> newEnumerator = _dependencyProvider.Resolve<IRepository>(ServiceImplementation.First).GetEnumerator();
+            newEnumerator.MoveNext();
+            Assert.AreEqual(newEnumerator.Current.GetType(), typeof(RepositoryImpl));
+        }
 
+        
+        [Test]
+        public void ResolveSecondImplementation()
+        {
+            DependenciesConfiguration dependencies = new DependenciesConfiguration();
+            _validator.DependenciesConfiguration = dependencies;
+            dependencies.Register<IRepository, RepositoryImpl>(LifeTime.Singleton);
+            dependencies.Register<IRepository, AnotherRepositoryImpl>(LifeTime.Singleton);
+            _dependencyProvider = new DependencyProvider(dependencies);
+            IEnumerator<IRepository> newEnumerator = _dependencyProvider.Resolve<IRepository>(ServiceImplementation.Second).GetEnumerator();
+            newEnumerator.MoveNext();
+            Assert.AreEqual(newEnumerator.Current.GetType(), typeof(AnotherRepositoryImpl));
+        }
+        
+        [Test]
+
+        public void AsSelfResolve()
+        {
+            DependenciesConfiguration dependencies = new DependenciesConfiguration();
+            _validator.DependenciesConfiguration = dependencies;
+            dependencies.Register<RepositoryImpl, RepositoryImpl>(LifeTime.Singleton);
+            _dependencyProvider = new DependencyProvider(dependencies);
+            IEnumerator<RepositoryImpl> newEnumerator = _dependencyProvider.Resolve<RepositoryImpl>(ServiceImplementation.First).GetEnumerator();
+            newEnumerator.MoveNext();
+            Assert.AreEqual(newEnumerator.Current.GetType(), typeof(RepositoryImpl));
+        }
+        
+        [Test]
+        public void ResolveNonExistent()
+        {
+            DependenciesConfiguration dependencies = new DependenciesConfiguration();
+            _validator.DependenciesConfiguration = dependencies;
+            dependencies.Register<RepositoryImpl, RepositoryImpl>(LifeTime.Singleton);
+            _dependencyProvider = new DependencyProvider(dependencies);
+            Assert.AreEqual(_dependencyProvider.Resolve<IRepository>(ServiceImplementation.First).Any(), false);
+        }
+        
     }
 }
