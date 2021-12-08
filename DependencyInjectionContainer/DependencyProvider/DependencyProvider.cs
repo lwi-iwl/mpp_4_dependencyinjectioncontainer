@@ -11,6 +11,7 @@ namespace DependencyInjectionContainer.DependencyProvider
         private DependenciesConfiguration _dependenciesConfiguration;
         private Dictionary<Implementation, object> _singletones;
         private Validator _validator;
+        static object locker = new object();
 
         public DependencyProvider(DependenciesConfiguration dependencies)
         {
@@ -74,17 +75,20 @@ namespace DependencyInjectionContainer.DependencyProvider
                 {
                     if (implementation.LifeTime == LifeTime.Singleton)
                     {
-                        if (_singletones.ContainsKey(implementation))
+                        lock (locker)
                         {
-                            tempResult.Add(_singletones[implementation]);
-                        }
-                        else
-                        {
-                            object newObject = GenerateGeneric(implementation, dependencyType);
-                            if (newObject != null)
+                            if (_singletones.ContainsKey(implementation))
                             {
-                                _singletones.Add(implementation, newObject);
                                 tempResult.Add(_singletones[implementation]);
+                            }
+                            else
+                            {
+                                object newObject = GenerateGeneric(implementation, dependencyType);
+                                if (newObject != null)
+                                {
+                                    _singletones.Add(implementation, newObject);
+                                    tempResult.Add(_singletones[implementation]);
+                                }
                             }
                         }
                     }
@@ -108,17 +112,20 @@ namespace DependencyInjectionContainer.DependencyProvider
                 {
                     if (implementation.LifeTime == LifeTime.Singleton)
                     {
-                        if (_singletones.ContainsKey(implementation))
+                        lock (locker)
                         {
-                            tempResult.Add(_singletones[implementation]);
-                        }
-                        else
-                        {
-                            object newObject = GenerateNonGeneric(implementation);
-                            if (newObject != null)
+                            if (_singletones.ContainsKey(implementation))
                             {
-                                _singletones.Add(implementation, newObject);
                                 tempResult.Add(_singletones[implementation]);
+                            }
+                            else
+                            {
+                                object newObject = GenerateNonGeneric(implementation);
+                                if (newObject != null)
+                                {
+                                    _singletones.Add(implementation, newObject);
+                                    tempResult.Add(_singletones[implementation]);
+                                }
                             }
                         }
                     }

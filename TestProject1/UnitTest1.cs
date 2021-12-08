@@ -298,6 +298,31 @@ namespace TestProject1
             _dependencyProvider = new DependencyProvider(dependencies);
             Assert.AreEqual(_dependencyProvider.Resolve<IRepository>(ServiceImplementation.First).Any(), false);
         }
+
+        private IEnumerator<IRepository> FirstThread()
+        {
+            IEnumerator<IRepository> newEnumerator = _dependencyProvider.Resolve<IRepository>().GetEnumerator();
+            return newEnumerator;
+        }
         
+        private IEnumerator<IRepository> SecondThread()
+        {
+            IEnumerator<IRepository> newEnumerator2 = _dependencyProvider.Resolve<IRepository>().GetEnumerator();
+            return newEnumerator2;
+        }
+        
+        [Test]
+        public void ThreadSingleton()
+        {
+            DependenciesConfiguration dependencies = new DependenciesConfiguration();
+            _validator.DependenciesConfiguration = dependencies;
+            dependencies.Register<IRepository, RepositoryImpl>(LifeTime.Singleton);
+            _dependencyProvider = new DependencyProvider(dependencies);
+            IEnumerator<IRepository> newEnumerator = FirstThread();
+            IEnumerator<IRepository> newEnumerator2 = SecondThread();
+            newEnumerator.MoveNext();
+            newEnumerator2.MoveNext();
+            Assert.AreEqual(newEnumerator.Current, newEnumerator2.Current);
+        }
     }
 }
